@@ -1,0 +1,472 @@
+from pathlib import Path
+import re
+
+p = Path("/mnt/data/OMM_Web_Studio/index.html")
+s = p.read_text(encoding="utf-8")
+
+new_game_section = r'''
+<section id="games" class="page">
+  <div class="games-head">
+    <div>
+      <h2 class="section-title">Mini Games</h2>
+      <p class="section-sub">Play, compete and improve your score — all powered by JavaScript.</p>
+    </div>
+    <div class="game-stats">
+      <div><span id="gameScore">0</span><small>Score</small></div>
+      <div><span id="gameBest">0</span><small>Best</small></div>
+    </div>
+  </div>
+
+  <div class="game-grid">
+    <div class="card game-card game-tile">
+      <div class="game-icon"><i class="fa-solid fa-hashtag"></i></div>
+      <span class="game-tag">2 PLAYER / AI</span>
+      <h3>Tic Tac Toe</h3>
+      <p class="muted">Classic X and O with animated board, win line and AI mode.</p>
+      <button class="btn accent" onclick="startTicTacToe()">Play Now <i class="fa-solid fa-play"></i></button>
+    </div>
+
+    <div class="card game-card game-tile">
+      <div class="game-icon"><i class="fa-solid fa-calculator"></i></div>
+      <span class="game-tag">BRAIN</span>
+      <h3>Math Brain</h3>
+      <p class="muted">Solve timed maths questions and build a combo streak.</p>
+      <button class="btn accent" onclick="startMathBrain()">Play Now <i class="fa-solid fa-play"></i></button>
+    </div>
+
+    <div class="card game-card game-tile">
+      <div class="game-icon"><i class="fa-solid fa-arrow-up"></i></div>
+      <span class="game-tag">REACTION</span>
+      <h3>Arrow Puzzle</h3>
+      <p class="muted">Tap the correct direction before the timer reaches zero.</p>
+      <button class="btn accent" onclick="startArrowPuzzle()">Play Now <i class="fa-solid fa-play"></i></button>
+    </div>
+
+    <div class="card game-card game-tile">
+      <div class="game-icon"><i class="fa-solid fa-hand-scissors"></i></div>
+      <span class="game-tag">QUICK</span>
+      <h3>Rock Paper Scissors</h3>
+      <p class="muted">Challenge the computer and see who reaches 5 points first.</p>
+      <button class="btn accent" onclick="startRPS()">Play Now <i class="fa-solid fa-play"></i></button>
+    </div>
+
+    <div class="card game-card game-tile">
+      <div class="game-icon"><i class="fa-solid fa-bolt"></i></div>
+      <span class="game-tag">SPEED</span>
+      <h3>Tap Reaction</h3>
+      <p class="muted">Wait for the signal, then tap as fast as possible.</p>
+      <button class="btn accent" onclick="startReaction()">Play Now <i class="fa-solid fa-play"></i></button>
+    </div>
+
+    <div class="card game-card game-tile">
+      <div class="game-icon"><i class="fa-solid fa-brain"></i></div>
+      <span class="game-tag">MEMORY</span>
+      <h3>Memory Match</h3>
+      <p class="muted">Flip cards and match all pairs with the fewest moves.</p>
+      <button class="btn accent" onclick="startMemory()">Play Now <i class="fa-solid fa-play"></i></button>
+    </div>
+  </div>
+</section>
+'''
+
+start = s.find('<section id="games"')
+end = s.find('</section>', start) + len('</section>')
+if start == -1 or end == -1:
+    raise RuntimeError("Games section not found")
+s = s[:start] + new_game_section + s[end:]
+
+extra_css = r'''
+/* ===== OMM GAME CENTER ===== */
+.games-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
+.game-stats{display:flex;gap:10px}
+.game-stats div{min-width:78px;padding:10px 14px;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.game-stats span{display:block;font-family:Poppins;font-size:20px;font-weight:800;color:var(--accent)}
+.game-stats small{color:var(--muted);font-size:10px}
+.game-tile{min-height:265px;display:flex;flex-direction:column;align-items:flex-start;position:relative;overflow:hidden;transition:.35s}
+.game-tile:before{content:"";position:absolute;width:160px;height:160px;border-radius:50%;right:-70px;top:-70px;background:linear-gradient(135deg,rgba(108,99,255,.16),rgba(0,198,255,.10));transition:.45s}
+.game-tile:hover{transform:translateY(-8px);box-shadow:0 28px 70px rgba(52,62,120,.18)}
+.game-tile:hover:before{transform:scale(1.45)}
+.game-icon{width:62px;height:62px;border-radius:19px;display:grid;place-items:center;background:linear-gradient(135deg,#6c63ff,#00c6ff);color:white;font-size:27px;box-shadow:0 12px 28px rgba(78,83,220,.24);animation:gameFloat 3s ease-in-out infinite}
+.game-tag{margin-top:14px;font-size:10px;letter-spacing:1.2px;font-weight:800;color:var(--accent)}
+.game-tile h3{font-size:22px;margin:5px 0}
+.game-tile .muted{font-size:14px;max-width:420px}
+.game-tile .btn{margin-top:auto}
+@keyframes gameFloat{50%{transform:translateY(-5px) rotate(2deg)}}
+.game-modal{width:min(620px,100%);max-height:92vh;overflow:auto;position:relative}
+.game-modal h2{font-family:Poppins;font-size:26px}
+.game-close{position:absolute;right:16px;top:16px;width:40px;height:40px;border-radius:12px;background:var(--bg);color:var(--text)}
+.game-hud{display:flex;justify-content:space-between;gap:10px;margin:15px 0}
+.hud-box{flex:1;padding:10px;border-radius:13px;background:var(--bg);border:1px solid var(--line);text-align:center}
+.hud-box b{display:block;color:var(--accent);font-size:18px}
+.hud-box span{font-size:10px;color:var(--muted)}
+.game-board{margin:18px auto}
+.ttt-board{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;max-width:330px}
+.ttt-cell{aspect-ratio:1;border-radius:18px;background:var(--bg);border:2px solid var(--line);font-size:48px;font-weight:800;color:var(--accent);transition:.2s}
+.ttt-cell:hover{transform:scale(1.04);border-color:var(--accent)}
+.ttt-cell.win{background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;animation:winPop .55s ease infinite alternate}
+@keyframes winPop{to{transform:scale(1.04)}}
+.game-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:15px}
+.math-question{font-family:Poppins;font-size:42px;font-weight:800;text-align:center;padding:24px;border-radius:22px;background:linear-gradient(135deg,rgba(108,99,255,.12),rgba(0,198,255,.10));margin:15px 0}
+.answer-input{max-width:250px;margin:auto;text-align:center;font-size:22px;font-weight:700}
+.timer-ring{width:112px;height:112px;border-radius:50%;margin:15px auto;display:grid;place-items:center;background:conic-gradient(var(--accent) var(--progress,100%),var(--line) 0);position:relative}
+.timer-ring:after{content:"";position:absolute;width:88px;height:88px;border-radius:50%;background:var(--card)}
+.timer-ring strong{position:relative;z-index:1;font-size:25px}
+.arrow-display{width:180px;height:180px;border-radius:35px;margin:15px auto;display:grid;place-items:center;font-size:100px;color:white;background:linear-gradient(135deg,#6c63ff,#00c6ff);box-shadow:0 20px 45px rgba(79,84,220,.25);animation:arrowPulse 1s ease-in-out infinite alternate}
+@keyframes arrowPulse{to{transform:scale(1.04) rotate(2deg);filter:brightness(1.1)}}
+.arrow-pad{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(2,64px);gap:8px;justify-content:center}
+.arrow-pad button{border-radius:15px;background:var(--bg);border:1px solid var(--line);font-size:24px;color:var(--text);transition:.2s}
+.arrow-pad button:hover{background:var(--accent);color:white;transform:scale(1.06)}
+.rps-choices{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin:20px 0}
+.choice-btn{width:90px;height:90px;border-radius:22px;background:var(--bg);border:1px solid var(--line);font-size:34px;transition:.25s}
+.choice-btn:hover{transform:translateY(-6px) rotate(-3deg);box-shadow:var(--shadow)}
+.choice-btn span{display:block;font-size:10px;margin-top:5px;font-weight:700}
+.reaction-zone{height:260px;border-radius:25px;background:var(--bg);display:grid;place-items:center;font-family:Poppins;font-size:25px;font-weight:800;user-select:none;cursor:pointer;transition:.2s}
+.reaction-zone.ready{background:#e6f7eb;color:#16834b}
+.reaction-zone.go{background:linear-gradient(135deg,#16a34a,#22c55e);color:white;animation:reactionPulse .3s ease}
+.reaction-zone.wait{background:#fff0f0;color:#c0392b}
+@keyframes reactionPulse{50%{transform:scale(.98)}}
+.memory-board{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;max-width:380px;margin:auto}
+.memory-card{aspect-ratio:1;border:0;border-radius:15px;background:linear-gradient(135deg,#6c63ff,#00c6ff);color:transparent;font-size:27px;transform-style:preserve-3d;transition:.35s}
+.memory-card.flipped,.memory-card.matched{background:var(--bg);color:var(--text);border:1px solid var(--line);transform:rotateY(180deg)}
+.memory-card.matched{outline:3px solid rgba(34,197,94,.35)}
+.no-anim *, .no-anim *:before, .no-anim *:after{animation:none!important;transition:none!important}
+@media(max-width:700px){
+  .games-head{flex-direction:column}.game-stats{width:100%}.game-stats div{flex:1}
+  .game-modal{padding:22px 15px!important}.ttt-board{max-width:290px}.math-question{font-size:32px}.arrow-display{width:155px;height:155px;font-size:82px}
+}
+'''
+
+s = s.replace('</style>', extra_css + '\n</style>', 1)
+
+# Replace the old modal with a richer game modal.
+old_modal = '''<div id="modal" class="modal"><div class="modal-card"><h2 id="modalTitle">Game</h2><p id="modalText" class="muted">...</p><button class="btn accent" style="margin-top:16px" onclick="closeModal()">Close</button></div></div>'''
+new_modal = '''<div id="modal" class="modal">
+  <div class="modal-card game-modal">
+    <button class="game-close" onclick="closeModal()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <h2 id="modalTitle">Game</h2>
+    <p id="modalText" class="muted">...</p>
+    <div id="gameMount"></div>
+  </div>
+</div>'''
+if old_modal not in s:
+    raise RuntimeError("Old modal not found")
+s = s.replace(old_modal,new_modal)
+
+# Replace game JS functions and add complete games.
+old_js = '''function openGame(title,text){document.getElementById("modalTitle").textContent=title;document.getElementById("modalText").textContent=text;document.getElementById("modal").classList.add("show")}
+function closeModal(){document.getElementById("modal").classList.remove("show")}
+function mathGame(){const a=Math.floor(Math.random()*12)+2,b=Math.floor(Math.random()*12)+2;openGame("Math Brain",`What is ${a} × ${b}? Answer: ${a*b}`)}
+function arrowGame(){const arrows=["↑","→","↓","←"];const x=arrows[Math.floor(Math.random()*4)];openGame("Arrow Puzzle",`Remember this arrow: ${x}`)}
+function openImage(src){openGame("Photo Preview","Your selected profile photo is displayed in the gallery.")}
+function addPhotos(e){'''
+new_js = r'''let gameScore=0, gameBest=Number(localStorage.getItem("ommGameBest")||0);
+let gameTimer=null, gameState={};
+const gameIcons={win:'fa-solid fa-trophy',lose:'fa-solid fa-heart-crack'};
+
+function updateGameStats(){
+  document.getElementById("gameScore").textContent=gameScore;
+  document.getElementById("gameBest").textContent=gameBest;
+}
+updateGameStats();
+
+function addScore(n){
+  gameScore=Math.max(0,gameScore+n);
+  if(gameScore>gameBest){gameBest=gameScore;localStorage.setItem("ommGameBest",gameBest)}
+  updateGameStats();
+}
+function openGame(title,text="",content=""){
+  clearInterval(gameTimer);
+  document.getElementById("modalTitle").textContent=title;
+  document.getElementById("modalText").textContent=text;
+  document.getElementById("gameMount").innerHTML=content;
+  document.getElementById("modal").classList.add("show");
+}
+function closeModal(){
+  clearInterval(gameTimer);
+  document.getElementById("modal").classList.remove("show");
+  document.getElementById("gameMount").innerHTML="";
+}
+document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
+
+/* ===== TIC TAC TOE ===== */
+function startTicTacToe(){
+  gameState={board:Array(9).fill(""),turn:"X",mode:"ai",over:false};
+  const content=`
+    <div class="game-hud">
+      <div class="hud-box"><b id="tttTurn">X</b><span>Turn</span></div>
+      <div class="hud-box"><b>VS AI</b><span>Mode</span></div>
+      <div class="hud-box"><b id="tttWins">0</b><span>Your wins</span></div>
+    </div>
+    <div class="ttt-board" id="tttBoard"></div>
+    <div id="tttStatus" class="muted" style="text-align:center;margin-top:13px">Your turn — you are X</div>
+    <div class="game-actions">
+      <button class="btn accent" onclick="resetTicTacToe()">New Round</button>
+      <button class="btn" style="background:var(--bg);color:var(--text)" onclick="closeModal()">Exit</button>
+    </div>`;
+  openGame("Tic Tac Toe","Beat the AI and complete a row, column or diagonal.",content);
+  renderTTT();
+}
+function renderTTT(){
+  const board=document.getElementById("tttBoard"); if(!board)return;
+  board.innerHTML="";
+  gameState.board.forEach((v,i)=>{
+    const b=document.createElement("button");b.className="ttt-cell";b.textContent=v;
+    b.onclick=()=>tttMove(i);board.appendChild(b);
+  });
+  document.getElementById("tttTurn").textContent=gameState.turn;
+}
+function tttMove(i){
+  if(gameState.over||gameState.board[i]||gameState.turn!=="X")return;
+  gameState.board[i]="X";renderTTT();
+  if(checkTTTEnd())return;
+  gameState.turn="O";renderTTT();
+  setTimeout(aiTTT,380);
+}
+function aiTTT(){
+  if(gameState.over)return;
+  const empty=gameState.board.map((v,i)=>v?null:i).filter(v=>v!==null);
+  const winMove=findWinningMove("O") ?? findWinningMove("X") ?? (gameState.board[4]?"":4);
+  let move=typeof winMove==="number"&&empty.includes(winMove)?winMove:empty[Math.floor(Math.random()*empty.length)];
+  if(move!==undefined)gameState.board[move]="O";
+  gameState.turn="X";renderTTT();checkTTTEnd();
+}
+function findWinningMove(mark){
+  for(let i=0;i<9;i++)if(!gameState.board[i]){
+    gameState.board[i]=mark;
+    const w=winningLine(gameState.board);
+    gameState.board[i]="";
+    if(w)return i;
+  } return null;
+}
+function winningLine(b){
+  const lines=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  return lines.find(l=>b[l[0]]&&b[l[0]]===b[l[1]]&&b[l[1]]===b[l[2]])||null;
+}
+function checkTTTEnd(){
+  const line=winningLine(gameState.board);
+  if(line){
+    gameState.over=true;
+    setTimeout(()=>line.forEach(i=>document.querySelectorAll(".ttt-cell")[i]?.classList.add("win")),50);
+    const winner=gameState.board[line[0]];
+    document.getElementById("tttStatus").textContent=winner==="X"?"🎉 You won!":"🤖 AI won!";
+    if(winner==="X"){addScore(20);document.getElementById("tttWins").textContent="1"}
+    else addScore(-5);
+    return true;
+  }
+  if(gameState.board.every(Boolean)){
+    gameState.over=true;document.getElementById("tttStatus").textContent="🤝 Draw!";return true;
+  }
+  return false;
+}
+function resetTicTacToe(){startTicTacToe()}
+
+/* ===== MATH BRAIN ===== */
+function startMathBrain(){
+  gameState={q:0,correct:0,streak:0,time:15,answer:0};
+  const content=`
+    <div class="game-hud">
+      <div class="hud-box"><b id="mathQ">1/10</b><span>Question</span></div>
+      <div class="hud-box"><b id="mathCorrect">0</b><span>Correct</span></div>
+      <div class="hud-box"><b id="mathStreak">0</b><span>Streak</span></div>
+    </div>
+    <div class="timer-ring" id="mathRing"><strong id="mathTime">15</strong></div>
+    <div class="math-question" id="mathQuestion">...</div>
+    <input id="mathAnswer" class="input answer-input" type="number" inputmode="numeric" placeholder="Your answer" autocomplete="off">
+    <div class="game-actions"><button class="btn accent" onclick="submitMath()">Submit <i class="fa-solid fa-check"></i></button></div>
+    <p id="mathStatus" class="muted" style="text-align:center;margin-top:12px">Solve before time runs out.</p>`;
+  openGame("Math Brain","10 questions • faster answers earn bigger streaks.",content);
+  nextMath();
+}
+function nextMath(){
+  clearInterval(gameTimer);
+  if(gameState.q>=10){finishMath();return}
+  const ops=["+","−","×"];
+  const op=ops[Math.floor(Math.random()*ops.length)];
+  let a,b,ans;
+  if(op==="+"){a=rand(5,50);b=rand(5,50);ans=a+b}
+  else if(op==="−"){a=rand(10,70);b=rand(2,a);ans=a-b}
+  else {a=rand(2,12);b=rand(2,12);ans=a*b}
+  gameState.answer=ans;gameState.time=15;gameState.q++;
+  document.getElementById("mathQ").textContent=gameState.q+"/10";
+  document.getElementById("mathQuestion").textContent=`${a} ${op} ${b} = ?`;
+  document.getElementById("mathAnswer").value="";
+  document.getElementById("mathAnswer").focus();
+  updateMathTimer();
+  gameTimer=setInterval(()=>{gameState.time--;updateMathTimer();if(gameState.time<=0){clearInterval(gameTimer);mathResult(false,true)}},1000);
+}
+function updateMathTimer(){
+  const t=Math.max(0,gameState.time);document.getElementById("mathTime").textContent=t;
+  document.getElementById("mathRing").style.setProperty("--progress",(t/15*100)+"%");
+}
+function submitMath(){
+  if(!gameState.answer && gameState.answer!==0)return;
+  const val=Number(document.getElementById("mathAnswer").value);
+  mathResult(val===gameState.answer,false);
+}
+function mathResult(correct,timeout){
+  clearInterval(gameTimer);
+  if(correct){gameState.correct++;gameState.streak++;addScore(10+Math.min(10,gameState.streak*2))}
+  else {gameState.streak=0;addScore(-2)}
+  document.getElementById("mathCorrect").textContent=gameState.correct;
+  document.getElementById("mathStreak").textContent=gameState.streak;
+  document.getElementById("mathStatus").textContent=correct?"✅ Correct!":timeout?"⏰ Time up!":"❌ Not quite!";
+  setTimeout(nextMath,650);
+}
+function finishMath(){
+  clearInterval(gameTimer);
+  const total=gameState.correct;
+  document.getElementById("gameMount").innerHTML=`
+    <div style="text-align:center;padding:20px">
+      <div class="game-icon" style="margin:auto"><i class="fa-solid fa-trophy"></i></div>
+      <h2 style="margin-top:15px">${total}/10 Correct</h2>
+      <p class="muted">Great work! Try again to beat your score.</p>
+      <button class="btn accent" style="margin-top:15px" onclick="startMathBrain()">Play Again</button>
+    </div>`;
+}
+function rand(min,max){return Math.floor(Math.random()*(max-min+1))+min}
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&document.getElementById("mathAnswer")===document.activeElement)submitMath()});
+
+/* ===== ARROW PUZZLE ===== */
+function startArrowPuzzle(){
+  gameState={round:0,hits:0,time:12,current:""};
+  const content=`
+    <div class="game-hud">
+      <div class="hud-box"><b id="arrowRound">1/12</b><span>Round</span></div>
+      <div class="hud-box"><b id="arrowHits">0</b><span>Hits</span></div>
+      <div class="hud-box"><b id="arrowTime">12</b><span>Seconds</span></div>
+    </div>
+    <div class="arrow-display" id="arrowDisplay">↑</div>
+    <div class="arrow-pad">
+      <span></span><button onclick="arrowAnswer('up')">↑</button><span></span>
+      <button onclick="arrowAnswer('left')">←</button><button onclick="arrowAnswer('down')">↓</button><button onclick="arrowAnswer('right')">→</button>
+    </div>
+    <p id="arrowStatus" class="muted" style="text-align:center;margin-top:13px">Tap the direction shown.</p>`;
+  openGame("Arrow Puzzle","12 rounds • correct taps increase your score.",content);
+  nextArrow();
+}
+function nextArrow(){
+  if(gameState.round>=12){finishArrow();return}
+  const list=[["up","↑"],["right","→"],["down","↓"],["left","←"]];
+  const item=list[Math.floor(Math.random()*list.length)];
+  gameState.current=item[0];gameState.round++;
+  document.getElementById("arrowDisplay").textContent=item[1];
+  document.getElementById("arrowRound").textContent=gameState.round+"/12";
+  if(gameState.round===1)startArrowTimer();
+}
+function startArrowTimer(){
+  clearInterval(gameTimer);gameState.time=12;
+  gameTimer=setInterval(()=>{gameState.time--;document.getElementById("arrowTime").textContent=gameState.time;if(gameState.time<=0){clearInterval(gameTimer);finishArrow()}},1000);
+}
+function arrowAnswer(dir){
+  if(!gameState.current||gameState.round>12)return;
+  if(dir===gameState.current){gameState.hits++;addScore(5);document.getElementById("arrowStatus").textContent="⚡ Perfect!";document.getElementById("arrowHits").textContent=gameState.hits}
+  else {addScore(-1);document.getElementById("arrowStatus").textContent="❌ Wrong direction"}
+  if(gameState.round<12)setTimeout(nextArrow,180);else finishArrow();
+}
+function finishArrow(){
+  clearInterval(gameTimer);gameState.current="";
+  document.getElementById("gameMount").innerHTML=`
+    <div style="text-align:center;padding:20px">
+      <div class="game-icon" style="margin:auto"><i class="fa-solid fa-bolt"></i></div>
+      <h2 style="margin-top:15px">${gameState.hits}/12 Correct</h2>
+      <p class="muted">Reaction score complete.</p>
+      <button class="btn accent" style="margin-top:15px" onclick="startArrowPuzzle()">Play Again</button>
+    </div>`;
+}
+
+/* ===== ROCK PAPER SCISSORS ===== */
+function startRPS(){
+  gameState={you:0,ai:0};
+  const content=`
+    <div class="game-hud">
+      <div class="hud-box"><b id="rpsYou">0</b><span>You</span></div>
+      <div class="hud-box"><b id="rpsAI">0</b><span>Computer</span></div>
+    </div>
+    <div id="rpsStatus" class="muted" style="text-align:center">First to 5 wins.</div>
+    <div class="rps-choices">
+      <button class="choice-btn" onclick="rpsPlay('rock')">✊<span>Rock</span></button>
+      <button class="choice-btn" onclick="rpsPlay('paper')">✋<span>Paper</span></button>
+      <button class="choice-btn" onclick="rpsPlay('scissors')">✌️<span>Scissors</span></button>
+    </div>`;
+  openGame("Rock Paper Scissors","Choose your move.",content);
+}
+function rpsPlay(you){
+  if(gameState.you>=5||gameState.ai>=5)return;
+  const moves=["rock","paper","scissors"],ai=moves[Math.floor(Math.random()*3)];
+  let result="";
+  if(you===ai)result="🤝 Draw!";
+  else if((you==="rock"&&ai==="scissors")||(you==="paper"&&ai==="rock")||(you==="scissors"&&ai==="paper")){gameState.you++;addScore(5);result="🎉 You win this round!"}
+  else{gameState.ai++;addScore(-1);result="🤖 Computer wins this round!"}
+  document.getElementById("rpsYou").textContent=gameState.you;document.getElementById("rpsAI").textContent=gameState.ai;
+  document.getElementById("rpsStatus").textContent=`You: ${you} • AI: ${ai} — ${result}`;
+  if(gameState.you>=5||gameState.ai>=5)setTimeout(()=>document.getElementById("rpsStatus").textContent=gameState.you>=5?"🏆 You reached 5!":"Game over — try again!",300);
+}
+
+/* ===== REACTION ===== */
+function startReaction(){
+  gameState={phase:"wait",start:0,attempt:0};
+  const content=`
+    <div class="game-hud"><div class="hud-box"><b id="reactionBest">—</b><span>Last ms</span></div><div class="hud-box"><b>READY</b><span>Wait for green</span></div></div>
+    <div id="reactionZone" class="reaction-zone wait">Wait for GREEN...</div>
+    <p id="reactionStatus" class="muted" style="text-align:center">Do not tap until the box turns green.</p>`;
+  openGame("Tap Reaction","Your fastest response wins.",content);
+  const delay=rand(1800,4800);
+  gameTimer=setTimeout(()=>{
+    if(gameState.phase!=="wait")return;
+    gameState.phase="go";gameState.start=performance.now();
+    const z=document.getElementById("reactionZone");z.className="reaction-zone go";z.textContent="TAP NOW!";
+  },delay);
+  document.getElementById("reactionZone").onclick=()=>{
+    const z=document.getElementById("reactionZone");
+    if(gameState.phase==="wait"){clearTimeout(gameTimer);gameState.phase="early";z.className="reaction-zone wait";z.textContent="Too early!";document.getElementById("reactionStatus").textContent="Restart and wait for green.";addScore(-3)}
+    else if(gameState.phase==="go"){const ms=Math.round(performance.now()-gameState.start);gameState.phase="done";z.textContent=ms+" ms";document.getElementById("reactionBest").textContent=ms;document.getElementById("reactionStatus").textContent=ms<300?"🔥 Lightning fast!":ms<500?"⚡ Great reaction!":"👍 Nice try!";addScore(Math.max(1,Math.round(1000/ms*10)))}
+  };
+}
+
+/* ===== MEMORY MATCH ===== */
+function startMemory(){
+  const emojis=["🍎","🚀","🎮","⭐","🐱","⚡","🌈","🔥"];
+  const deck=[...emojis,...emojis].sort(()=>Math.random()-.5);
+  gameState={deck,flipped:[],matched:0,moves:0,lock:false};
+  const content=`
+    <div class="game-hud"><div class="hud-box"><b id="memoryMoves">0</b><span>Moves</span></div><div class="hud-box"><b id="memoryPairs">0/8</b><span>Pairs</span></div></div>
+    <div class="memory-board" id="memoryBoard"></div>
+    <div class="game-actions"><button class="btn accent" onclick="startMemory()">Restart</button></div>`;
+  openGame("Memory Match","Find all 8 matching pairs.",content);renderMemory();
+}
+function renderMemory(){
+  const b=document.getElementById("memoryBoard");b.innerHTML="";
+  gameState.deck.forEach((emoji,i)=>{
+    const c=document.createElement("button");c.className="memory-card";c.textContent=emoji;c.dataset.i=i;
+    c.onclick=()=>flipMemory(i,c);b.appendChild(c);
+  });
+}
+function flipMemory(i,c){
+  if(gameState.lock||gameState.flipped.includes(i)||c.classList.contains("matched"))return;
+  c.classList.add("flipped");gameState.flipped.push(i);
+  if(gameState.flipped.length===2){
+    gameState.moves++;document.getElementById("memoryMoves").textContent=gameState.moves;
+    const [a,b]=gameState.flipped, cards=[...document.querySelectorAll(".memory-card")];
+    if(gameState.deck[a]===gameState.deck[b]){
+      cards[a].classList.add("matched");cards[b].classList.add("matched");gameState.matched++;gameState.flipped=[];
+      document.getElementById("memoryPairs").textContent=gameState.matched+"/8";addScore(8);
+      if(gameState.matched===8)setTimeout(()=>showMemoryWin(),350);
+    }else{
+      gameState.lock=true;setTimeout(()=>{cards[a].classList.remove("flipped");cards[b].classList.remove("flipped");gameState.flipped=[];gameState.lock=false},650);
+    }
+  }
+}
+function showMemoryWin(){
+  document.getElementById("gameMount").innerHTML=`<div style="text-align:center;padding:20px"><div class="game-icon" style="margin:auto"><i class="fa-solid fa-brain"></i></div><h2 style="margin-top:15px">🎉 All Pairs Matched!</h2><p class="muted">Completed in ${gameState.moves} moves.</p><button class="btn accent" style="margin-top:15px" onclick="startMemory()">Play Again</button></div>`;
+}
+
+function openImage(src){openGame("Photo Preview","Your selected profile photo is displayed in the gallery.")}
+function addPhotos(e){'''
+if old_js not in s:
+    raise RuntimeError("Old game JS block not found")
+s = s.replace(old_js,new_js)
+
+# Make mobile nav "Games" open the games page as before; no changes needed.
+p.write_text(s,encoding="utf-8")
+print(f"Updated: {p}")
+print(f"Size: {p.stat().st_size/1024:.1f} KB")
